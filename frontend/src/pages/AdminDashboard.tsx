@@ -38,6 +38,8 @@ export function AdminDashboard() {
   const [editingJudge, setEditingJudge] = useState<Judge | null>(null);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [resultsTab, setResultsTab] = useState<'participants' | 'toprank' | 'criterion'>('participants');
+  const [refreshToken, setRefreshToken] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const categories = [
@@ -53,6 +55,23 @@ export function AdminDashboard() {
     }
     loadJudges();
   }, [navigate]);
+
+  // Silent session probe when the tab regains focus.
+  // If the token is expired, the axios response interceptor redirects to
+  // /login automatically. On success we silently refresh the judges list.
+  useEffect(() => {
+    const handleFocus = async () => {
+      if (!localStorage.getItem('token')) return;
+      try {
+        await apiService.getJudges();
+        setRefreshToken((t) => t + 1);
+      } catch {
+        /* 401 handled by interceptor; swallow other errors */
+      }
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
 
   const loadJudges = async () => {
     try {
@@ -284,7 +303,6 @@ export function AdminDashboard() {
       );
       console.log('API Response:', response.data);
       handleCloseCategoryAssignment();
-      alert('Category assignments updated successfully');
       // Reload judges after closing modal
       console.log('Reloading judges...');
       await loadJudges();
@@ -375,6 +393,20 @@ export function AdminDashboard() {
     navigate('/login');
   };
 
+  // Global refresh — re-fetches parent-level data (judges) and bumps
+  // refreshToken so any child view that watches it reloads too.
+  const handleGlobalRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await loadJudges();
+      setRefreshToken((t) => t + 1);
+    } finally {
+      // Leave the spinner on briefly for visual confirmation
+      setTimeout(() => setRefreshing(false), 600);
+    }
+  };
+
   return (
     <div className="admin-container">
       <header className="admin-header">
@@ -400,7 +432,19 @@ export function AdminDashboard() {
             <br />
             {judges.length} Judge{judges.length === 1 ? '' : 's'} · 12 Categories
           </div>
-          <button onClick={handleLogout} className="logout-btn">Log Out</button>
+          <div className="masthead-actions">
+            <button
+              type="button"
+              onClick={handleGlobalRefresh}
+              className={`header-refresh-btn${refreshing ? ' spinning' : ''}`}
+              disabled={refreshing}
+              title="Refresh all data"
+            >
+              <span className="header-refresh-icon" aria-hidden>↻</span>
+              <span>{refreshing ? 'Refreshing…' : 'Refresh'}</span>
+            </button>
+            <button onClick={handleLogout} className="logout-btn">Log Out</button>
+          </div>
         </div>
       </header>
 
@@ -749,8 +793,13 @@ DB,02,Tom Wilson,Amy Chen  → DB02
                               key={judge.id}
                               className={index >= 3 ? 'overflow' : ''}
                             >
-                              <strong>{judge.name}</strong>
-                              <em>{judge.username}</em>
+                              <span className="judge-slot-label">
+                                Judge {index + 1}
+                              </span>
+                              <span className="judge-slot-identity">
+                                <strong>{judge.name}</strong>
+                                <em>{judge.username}</em>
+                              </span>
                             </li>
                           ))}
                         </ul>
@@ -803,14 +852,14 @@ DB,02,Tom Wilson,Amy Chen  → DB02
         {activeTab === 'participants' && (
           <div className="participants-section">
             <h2>Manage Participants</h2>
-            <ManageParticipantsView categories={categories} />
+            <ManageParticipantsView categories={categories} refreshToken={refreshToken} />
           </div>
         )}
 
         {activeTab === 'users' && (
           <div className="users-section">
             <h2>Manage User Credentials</h2>
-            <ManageUsersView />
+            <ManageUsersView refreshToken={refreshToken} />
           </div>
         )}
 
@@ -853,13 +902,17 @@ DB,02,Tom Wilson,Amy Chen  → DB02
                     ))}
                   </select>
                 </div>
-                <ResultsView categoryCode={categoryCode} />
+                <ResultsView categoryCode={categoryCode} refreshToken={refreshToken} />
               </>
             )}
 
-            {resultsTab === 'toprank' && <TopRankHoldersView categories={categories} />}
+            {resultsTab === 'toprank' && (
+              <TopRankHoldersView categories={categories} refreshToken={refreshToken} />
+            )}
 
-            {resultsTab === 'criterion' && <CriterionStarsView categories={categories} />}
+            {resultsTab === 'criterion' && (
+              <CriterionStarsView categories={categories} refreshToken={refreshToken} />
+            )}
           </div>
         )}
 
@@ -875,7 +928,15 @@ DB,02,Tom Wilson,Amy Chen  → DB02
   );
 }
 
-function ResultsView({ categoryCode }: { categoryCode: string }) {
+export function ResultsView({
+  categoryCode,
+  readOnly = false,
+  refreshToken = 0,
+}: {
+  categoryCode: string;
+  readOnly?: boolean;
+  refreshToken?: number;
+}) {
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
@@ -886,7 +947,7 @@ function ResultsView({ categoryCode }: { categoryCode: string }) {
   useEffect(() => {
     loadResults();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [categoryCode]);
+  }, [categoryCode, refreshToken]);
 
   const loadResults = async () => {
     setLoading(true);
@@ -1078,16 +1139,36 @@ function ResultsView({ categoryCode }: { categoryCode: string }) {
     <div className="results-view">
       {results.length > 0 && (
         <>
-          <div className="export-actions" style={{ marginBottom: '15px', display: 'flex', gap: '10px' }}>
-            <button onClick={exportToPDF} className="btn-export" disabled={completedEntries.length === 0}>
-              📄 Export to PDF
+          <div className="export-actions" style={{ marginBottom: '15px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <button
+              onClick={exportToPDF}
+              className="btn-export"
+              disabled={readOnly || completedEntries.length === 0}
+              title={readOnly ? 'Export is disabled for view-only access' : ''}
+            >
+              Export to PDF
             </button>
-            <button onClick={exportToCSV} className="btn-export" disabled={completedEntries.length === 0}>
-              📊 Export to CSV
+            <button
+              onClick={exportToCSV}
+              className="btn-export"
+              disabled={readOnly || completedEntries.length === 0}
+              title={readOnly ? 'Export is disabled for view-only access' : ''}
+            >
+              Export to CSV
             </button>
-            <button onClick={exportToXLSX} className="btn-export" disabled={completedEntries.length === 0}>
-              📗 Export to XLSX
+            <button
+              onClick={exportToXLSX}
+              className="btn-export"
+              disabled={readOnly || completedEntries.length === 0}
+              title={readOnly ? 'Export is disabled for view-only access' : ''}
+            >
+              Export to XLSX
             </button>
+            {readOnly && (
+              <span className="readonly-note">
+                Export is disabled for view-only access
+              </span>
+            )}
           </div>
           
           <div className="results-summary">
@@ -1171,9 +1252,24 @@ function ResultsView({ categoryCode }: { categoryCode: string }) {
                       {result.participant1Name}
                       {result.participant2Name && <><br /><span className="participant2">{result.participant2Name}</span></>}
                     </td>
-                    <td>{result.judge1Score?.totalScore || '-'}</td>
-                    <td>{result.judge2Score?.totalScore || '-'}</td>
-                    <td>{result.judge3Score?.totalScore || '-'}</td>
+                    <td>
+                      <div>{result.judge1Score?.totalScore || '-'}</div>
+                      {result.judge1Score?.judgeUsername && (
+                        <div className="judge-username-badge">{result.judge1Score.judgeUsername}</div>
+                      )}
+                    </td>
+                    <td>
+                      <div>{result.judge2Score?.totalScore || '-'}</div>
+                      {result.judge2Score?.judgeUsername && (
+                        <div className="judge-username-badge">{result.judge2Score.judgeUsername}</div>
+                      )}
+                    </td>
+                    <td>
+                      <div>{result.judge3Score?.totalScore || '-'}</div>
+                      {result.judge3Score?.judgeUsername && (
+                        <div className="judge-username-badge">{result.judge3Score.judgeUsername}</div>
+                      )}
+                    </td>
                     <td className="average-score"><strong>{result.totalScore ? result.totalScore.toFixed(2) : '-'}</strong></td>
                   </tr>
                 ))}
@@ -2082,7 +2178,13 @@ try {
 /* ═══════════════════════════════════════════════════════════
    Top Rank Holders — overall ranking across every category
    ═══════════════════════════════════════════════════════════ */
-function TopRankHoldersView({ categories }: { categories: string[] }) {
+export function TopRankHoldersView({
+  categories,
+  refreshToken = 0,
+}: {
+  categories: string[];
+  refreshToken?: number;
+}) {
   const [topN, setTopN] = useState<number>(3);
   const [dataByCategory, setDataByCategory] = useState<Record<string, any[]>>({});
   const [loading, setLoading] = useState(false);
@@ -2091,7 +2193,7 @@ function TopRankHoldersView({ categories }: { categories: string[] }) {
   useEffect(() => {
     loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [refreshToken]);
 
   const loadAll = async () => {
     setLoading(true);
@@ -2194,7 +2296,13 @@ function TopRankHoldersView({ categories }: { categories: string[] }) {
    Criterion Stars — top 3 per criterion per category
    (Costume · Movements · Posture)
    ═══════════════════════════════════════════════════════════ */
-function CriterionStarsView({ categories }: { categories: string[] }) {
+export function CriterionStarsView({
+  categories,
+  refreshToken = 0,
+}: {
+  categories: string[];
+  refreshToken?: number;
+}) {
   const [dataByCategory, setDataByCategory] = useState<Record<string, any[]>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
@@ -2202,7 +2310,7 @@ function CriterionStarsView({ categories }: { categories: string[] }) {
   useEffect(() => {
     loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [refreshToken]);
 
   const loadAll = async () => {
     setLoading(true);
@@ -2329,7 +2437,13 @@ function CriterionStarsView({ categories }: { categories: string[] }) {
   );
 }
 
-function ManageParticipantsView({ categories }: { categories: string[] }) {
+function ManageParticipantsView({
+  categories,
+  refreshToken = 0,
+}: {
+  categories: string[];
+  refreshToken?: number;
+}) {
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [participants, setParticipants] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -2341,7 +2455,7 @@ function ManageParticipantsView({ categories }: { categories: string[] }) {
     loadParticipants();
     setSelectedEntries(new Set()); // Clear selection when category changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCategory]);
+  }, [selectedCategory, refreshToken]);
 
   const loadParticipants = async () => {
     setLoading(true);
@@ -2760,9 +2874,24 @@ function ManageParticipantsView({ categories }: { categories: string[] }) {
                         <><br /><span style={{ color: '#666' }}>{entry.participant2Name}</span></>
                       )}
                     </td>
-                    <td style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>{entry.judge1Score?.totalScore || '-'}</td>
-                    <td style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>{entry.judge2Score?.totalScore || '-'}</td>
-                    <td style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>{entry.judge3Score?.totalScore || '-'}</td>
+                    <td style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>
+                      <div>{entry.judge1Score?.totalScore || '-'}</div>
+                      {entry.judge1Score?.judgeUsername && (
+                        <div className="judge-username-badge">{entry.judge1Score.judgeUsername}</div>
+                      )}
+                    </td>
+                    <td style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>
+                      <div>{entry.judge2Score?.totalScore || '-'}</div>
+                      {entry.judge2Score?.judgeUsername && (
+                        <div className="judge-username-badge">{entry.judge2Score.judgeUsername}</div>
+                      )}
+                    </td>
+                    <td style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>
+                      <div>{entry.judge3Score?.totalScore || '-'}</div>
+                      {entry.judge3Score?.judgeUsername && (
+                        <div className="judge-username-badge">{entry.judge3Score.judgeUsername}</div>
+                      )}
+                    </td>
                     <td style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center', fontWeight: 'bold' }}>
                       {entry.averageScore ? entry.averageScore.toFixed(2) : '-'}
                     </td>
@@ -2814,7 +2943,7 @@ function ManageParticipantsView({ categories }: { categories: string[] }) {
   );
 }
 
-function ManageUsersView() {
+function ManageUsersView({ refreshToken = 0 }: { refreshToken?: number }) {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
@@ -2832,7 +2961,8 @@ function ManageUsersView() {
 
   useEffect(() => {
     loadUsers();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshToken]);
 
   const loadUsers = async () => {
     setLoading(true);
@@ -3104,6 +3234,7 @@ function ManageUsersView() {
                 >
                   <option value="judge">Judge</option>
                   <option value="admin">Admin</option>
+                  <option value="view">View (read-only Results)</option>
                 </select>
               </div>
               {newUser.role === 'judge' && (

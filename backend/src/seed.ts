@@ -22,6 +22,17 @@ async function seedUsers() {
   );
   console.log('✓ Admin user created');
 
+  // View-only user (read-only access to Results tab)
+  const viewUserId = uuidv4();
+  const viewPassword = await hashPassword(process.env.VIEW_PASSWORD || 'view123');
+
+  await run(
+    `INSERT OR REPLACE INTO users (id, username, email, password, role, createdAt)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [viewUserId, 'view', 'view@dancejudge.com', viewPassword, 'view', new Date().toISOString()]
+  );
+  console.log('✓ View user created (read-only Results access)');
+
   // Judge users
   for (let i = 1; i <= 15; i++) {
     const judgeUserId = uuidv4();
@@ -46,7 +57,8 @@ async function seedUsers() {
 
   console.log('\n✅ Seed complete!');
   console.log('\nCredentials:');
-  console.log('  Admin: admin / ' + (process.env.ADMIN_PASSWORD || 'admin123'));
+  console.log('  Admin:  admin / ' + (process.env.ADMIN_PASSWORD || 'admin123'));
+  console.log('  View:   view  / ' + (process.env.VIEW_PASSWORD || 'view123') + '  (read-only Results)');
   console.log('  Judges: judge1-judge15 / password same as username (e.g., judge1/judge1)');
   console.log('  Note: Assign categories to judges through Admin Dashboard');
 

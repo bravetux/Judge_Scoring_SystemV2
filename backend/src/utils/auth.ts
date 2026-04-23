@@ -13,7 +13,9 @@ export async function comparePassword(password: string, hash: string): Promise<b
 }
 
 export function generateToken(payload: JwtPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '24h' });
+  // 7 days — covers multi-day competition events. A silent session probe
+  // on window-focus in the frontend proactively catches expired tokens.
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
 }
 
 export function verifyToken(token: string): JwtPayload | null {

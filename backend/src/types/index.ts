@@ -3,7 +3,7 @@ export interface User {
   username: string;
   email: string;
   password: string;
-  role: 'admin' | 'judge';
+  role: 'admin' | 'judge' | 'view';
   createdAt: string;
 }
 
@@ -43,30 +43,24 @@ export interface Score {
   submittedAt: string;
 }
 
+export interface JudgeSlotScore {
+  costumAndImpression: number;
+  movementsAndRhythm: number;
+  postureAndMudra: number;
+  totalScore: number;
+  judgeUsername?: string;
+  judgeName?: string;
+}
+
 export interface DanceEntryScore {
   entryId: string;
   categoryCode: string;
   entryNumber: number;
   participant1Name: string;
   participant2Name?: string;
-  judge1Score?: {
-    costumAndImpression: number;
-    movementsAndRhythm: number;
-    postureAndMudra: number;
-    totalScore: number;
-  };
-  judge2Score?: {
-    costumAndImpression: number;
-    movementsAndRhythm: number;
-    postureAndMudra: number;
-    totalScore: number;
-  };
-  judge3Score?: {
-    costumAndImpression: number;
-    movementsAndRhythm: number;
-    postureAndMudra: number;
-    totalScore: number;
-  };
+  judge1Score?: JudgeSlotScore;
+  judge2Score?: JudgeSlotScore;
+  judge3Score?: JudgeSlotScore;
   totalScore?: number;
   averageScore?: number;
   rank?: number;
@@ -75,5 +69,5 @@ export interface DanceEntryScore {
 export interface JwtPayload {
   userId: string;
   username: string;
-  role: 'admin' | 'judge';
+  role: 'admin' | 'judge' | 'view';
 }

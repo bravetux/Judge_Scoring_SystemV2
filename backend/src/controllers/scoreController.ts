@@ -172,8 +172,9 @@ export async function getScoresByCategory(
   res: Response
 ) {
   try {
-    if (req.user?.role !== 'admin') {
-      return res.status(403).json({ error: 'Only admins can view all scores' });
+    // Admin (full access) and view (read-only) can both see results.
+    if (req.user?.role !== 'admin' && req.user?.role !== 'view') {
+      return res.status(403).json({ error: 'Admin or view access required' });
     }
 
     const { categoryCode } = req.params;
@@ -188,11 +189,23 @@ export async function getScoresByCategory(
     const entriesWithScores: DanceEntryScore[] = await Promise.all(
       entries.map(async (entry) => {
         const scores = await all<any>(
-          `SELECT s.*, j.id as judgeId FROM scores s 
+          `SELECT s.*, j.id as judgeId, j.name as judgeName, u.username as judgeUsername
+           FROM scores s
            JOIN judges j ON s.judgeId = j.id
-           WHERE s.entryId = ?
-           ORDER BY j.id`,
+           JOIN users u ON j.userId = u.id
+           WHERE s.entryId = ?`,
           [entry.id]
+        );
+
+        // Natural-sort by username so judge1, judge2, judge3, …, judge10
+        // map to the Judge1 / Judge2 / Judge3 slots predictably. Without
+        // this, ORDER BY UUID puts them in effectively random order.
+        scores.sort((a: any, b: any) =>
+          String(a.judgeUsername || '').localeCompare(
+            String(b.judgeUsername || ''),
+            undefined,
+            { numeric: true, sensitivity: 'base' }
+          )
         );
 
         const result: DanceEntryScore = {
@@ -203,30 +216,20 @@ export async function getScoresByCategory(
           participant2Name: entry.participant2Name,
         };
 
-        // Assign scores based on judge order
-        scores.forEach((score, index) => {
-          if (index === 0) {
-            result.judge1Score = {
-              costumAndImpression: score.costumAndImpression,
-              movementsAndRhythm: score.movementsAndRhythm,
-              postureAndMudra: score.postureAndMudra,
-              totalScore: score.totalScore,
-            };
-          } else if (index === 1) {
-            result.judge2Score = {
-              costumAndImpression: score.costumAndImpression,
-              movementsAndRhythm: score.movementsAndRhythm,
-              postureAndMudra: score.postureAndMudra,
-              totalScore: score.totalScore,
-            };
-          } else if (index === 2) {
-            result.judge3Score = {
-              costumAndImpression: score.costumAndImpression,
-              movementsAndRhythm: score.movementsAndRhythm,
-              postureAndMudra: score.postureAndMudra,
-              totalScore: score.totalScore,
-            };
-          }
+        const buildScore = (score: any) => ({
+          costumAndImpression: score.costumAndImpression,
+          movementsAndRhythm: score.movementsAndRhythm,
+          postureAndMudra: score.postureAndMudra,
+          totalScore: score.totalScore,
+          judgeUsername: score.judgeUsername,
+          judgeName: score.judgeName,
+        });
+
+        // Assign scores based on sorted-by-username order
+        scores.forEach((score: any, index: number) => {
+          if (index === 0) result.judge1Score = buildScore(score);
+          else if (index === 1) result.judge2Score = buildScore(score);
+          else if (index === 2) result.judge3Score = buildScore(score);
         });
 
         // Calculate total score if all 3 judges have submitted

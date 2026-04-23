@@ -23,6 +23,8 @@ export function LoginPage() {
 
       if (response.data.role === 'admin') {
         navigate('/admin/dashboard');
+      } else if (response.data.role === 'view') {
+        navigate('/view/dashboard');
       } else {
         navigate('/judge/dashboard');
       }

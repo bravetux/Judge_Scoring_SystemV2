@@ -153,6 +153,22 @@ It ships with two dedicated dashboards, each with a **distinctive visual identit
 - A 1–10 tick-strip below with the active tick highlighted in brass
 - A bold gold-bordered **Composite Score NN/30** panel at the bottom
 
+### View Dashboard — *The Ledger* (read-only observer)
+
+A third dashboard for the `view` role, intended for committee members, event organisers or a projector screen during awards — anyone who needs to see live results but must not be able to change scores or export.
+
+- Same three Results sub-tabs as the admin: **Participants & Scores**, **Top Rank Holders**, **Criterion Stars**
+- **No** Entries, Judges, Participants, Users or Settings tabs — only results are reachable
+- **Export buttons are disabled** with an inline italic disclaimer ("Export is disabled for view-only access"), so numbers can be watched but not taken off the machine
+- Dedicated editorial masthead: `The Ledger.` with an *Observer Desk · Read-only Session* eyebrow
+- Credentials: `view` / `view123` (see Default Credentials table below)
+
+### Refresh button — all three dashboards
+
+A `Refresh ↻` button sits in the header of each dashboard (Admin, Judge, View). It re-fetches the current tab's data **without losing sort order, selection, or which sub-tab is active** (it flips an internal `refreshToken` the data-loading views watch, rather than remounting them). While a refresh is in flight the icon spins and the button shows "Refreshing…".
+
+In addition, each dashboard now **silently probes the session when you return to the tab after being idle** (a `window.focus` handler). If the JWT has expired or the backend is briefly unreachable you're taken cleanly back to `/login` *before* trying to submit, instead of hitting a silent dead-end — this eliminates the old "idle → can't submit → must logout to recover" gotcha.
+
 ### Login Page
 
 Split-screen: a dark **Stage** (left) with massive italic `Dance / Judge.` wordmark, ornamental corner brackets and a vertical gold rule; a cream **Ticket** (right) with an underline-animated form, editorial labels, and a submit button whose hover wipes a vermilion panel across from left to right.
@@ -234,12 +250,32 @@ The frontend proxies API calls to `http://localhost:5000/api` by default; overri
 | Role | Username | Password |
 |---|---|---|
 | Admin | `admin` | `admin123` |
+| View (read-only Results) | `view` | `view123` |
 | Judge 1 | `judge1` | `judge1` |
 | Judge 2 | `judge2` | `judge2` |
 | … | … | username == password |
 | Judge 15 | `judge15` | `judge15` |
 
 Categories start **unassigned** — assign them in the Admin Dashboard → Judges tab.
+
+## Judge Slot Ordering — how `Judge 1 / 2 / 3` columns work
+
+Each category can have up to three judges, and the Manage Participants table has three fixed columns: **Judge 1**, **Judge 2**, **Judge 3**. These columns are **positional slots**, not literal references to `judge1`, `judge2`, `judge3`.
+
+**The mapping rule:** judges assigned to a category are ordered by their username using natural numeric sort (so `judge1, judge2, judge3, …, judge9, judge10` — not the lexical `judge1, judge10, judge11, …, judge2, judge20`). The first in that order occupies the **Judge 1** slot, the second occupies **Judge 2**, the third occupies **Judge 3**.
+
+**Worked example** — category `SB` has judges `judge4, judge7, judge8` assigned:
+
+| Slot | Assigned to | Shown in Manage Participants column |
+|---|---|---|
+| Judge 1 | `judge4` | `Judge 1` — all SB entries show judge4's score here |
+| Judge 2 | `judge7` | `Judge 2` — judge7's score |
+| Judge 3 | `judge8` | `Judge 3` — judge8's score |
+
+**Where to verify in the UI:**
+- **Admin → Judges tab → Categories Overview** — each assigned judge is labelled with its slot (italic vermilion `Judge 1` / `Judge 2` / `Judge 3`) beside their display name and username.
+- **Admin → Participants tab** and **Results tab** — each score cell shows the judge's username as a small mono badge underneath the score number, so you can cross-check without looking back at the overview.
+- **Over-limit warning** — if more than three judges are assigned to a category, extra judges are shown with rust-red slot labels (`Judge 4`, `Judge 5`, …) and a red warning bar at the top of the category card. The app only counts the first three slots toward ranking.
 
 ## API Endpoints
 
@@ -366,6 +402,7 @@ From then on, one click = fresh mirror. phpMyAdmin lets you query, inspect and e
 - **v1.1.0** — Export functionality (PDF, CSV, XLSX)
 - **v1.2.0** — Enhanced participant management and bulk operations
 - **v2.0.0** — Editorial redesign across all three pages (Login · Admin · Judge); new Results sub-tabs (Top Rank Holders · Criterion Stars); Settings tab with JSON export/import and XAMPP MySQL mirror (two-way); judge-side score distribution histogram; privacy: scores hidden on judge entry cards; natural-sort for judges; global `Cache-Control: no-store`; async bcrypt; 401 redirect interceptor; axios 50s timeout; numerous bug fixes.
+- **v2.1.0** — Observer role: new `view / view123` user with read-only Results dashboard (`The Ledger.`); exports disabled for view sessions. **Manual refresh buttons** on all three dashboards that preserve sort/selection state. **Silent session probe on window focus** — fixes the "idle → can't submit → must logout" bug. **JWT extended to 7 days** for multi-day events. **Judge slot ordering made deterministic and cross-referenceable** — scores endpoint now sorts by username naturally (not UUID), Categories Overview labels each assigned judge with its slot (`Judge 1 / 2 / 3`), and every score cell shows the judge's username as a badge. **SQLite WAL mode enabled** — concurrent readers no longer block on writers, smoother experience with 6+ judges online. Removed redundant success alerts ("Category assignments updated", "Entry deleted"). Richer submit-failure error messages (HTTP status, timeout, network). `startup.bat` now runs `ts-node` directly so backend changes take effect without rebuild. `create-view-user.js` one-shot utility for adding the observer user to an existing DB.
 
 ## License
 

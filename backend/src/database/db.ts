@@ -8,6 +8,23 @@ export const db = new sqlite3.Database(dbPath);
 export function initializeDatabase(): Promise<void> {
   return new Promise((resolve, reject) => {
     db.serialize(() => {
+      // Enable Write-Ahead Logging — readers don't block on writers,
+      // giving a much smoother experience when many users are online.
+      // This is persistent on the DB file (set once, survives restarts).
+      db.run('PRAGMA journal_mode = WAL', (err) => {
+        if (err) reject(err);
+        else console.log('✓ SQLite WAL mode enabled');
+      });
+      // Durable enough for a live event, measurably faster than FULL.
+      db.run('PRAGMA synchronous = NORMAL', (err) => {
+        if (err) reject(err);
+      });
+      // Give waiting operations up to 5s before throwing SQLITE_BUSY —
+      // protects us if a long read and a write happen to collide.
+      db.run('PRAGMA busy_timeout = 5000', (err) => {
+        if (err) reject(err);
+      });
+
       // Users table
       db.run(
         `CREATE TABLE IF NOT EXISTS users (

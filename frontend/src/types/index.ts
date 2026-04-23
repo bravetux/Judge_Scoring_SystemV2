@@ -26,30 +26,24 @@ export interface DanceEntry {
   };
 }
 
+export interface JudgeSlotScore {
+  costumAndImpression: number;
+  movementsAndRhythm: number;
+  postureAndMudra: number;
+  totalScore: number;
+  judgeUsername?: string;
+  judgeName?: string;
+}
+
 export interface ScoreData {
   entryId: string;
   categoryCode: string;
   entryNumber: number;
   participant1Name: string;
   participant2Name?: string;
-  judge1Score?: {
-    costumAndImpression: number;
-    movementsAndRhythm: number;
-    postureAndMudra: number;
-    totalScore: number;
-  };
-  judge2Score?: {
-    costumAndImpression: number;
-    movementsAndRhythm: number;
-    postureAndMudra: number;
-    totalScore: number;
-  };
-  judge3Score?: {
-    costumAndImpression: number;
-    movementsAndRhythm: number;
-    postureAndMudra: number;
-    totalScore: number;
-  };
+  judge1Score?: JudgeSlotScore;
+  judge2Score?: JudgeSlotScore;
+  judge3Score?: JudgeSlotScore;
   averageScore?: number;
   rank?: number;
 }

@@ -50,6 +50,7 @@ echo   Backend:  http://localhost:5000
 echo   Frontend: http://localhost:3000
 echo.
 echo   Default Credentials:
+echo     View:    view     / view123
 echo     Admin:   admin    / admin123
 echo     Judges:  judge1   / judge1
 echo              judge2   / judge2

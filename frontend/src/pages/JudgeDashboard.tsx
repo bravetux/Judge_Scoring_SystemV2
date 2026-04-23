@@ -23,6 +23,7 @@ export function JudgeDashboard() {
     movementsAndRhythm: 5,
     postureAndMudra: 5,
   });
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -33,6 +34,27 @@ export function JudgeDashboard() {
     loadJudgeProfile();
     loadCategories();
   }, [navigate]);
+
+  // Silent session check when the tab regains focus after being idle.
+  // Catches expired tokens (→ the axios interceptor redirects to /login)
+  // AND refreshes stale data so the judge doesn't submit into a broken session.
+  useEffect(() => {
+    const handleFocus = async () => {
+      if (!localStorage.getItem('token')) return;
+      try {
+        await apiService.getJudgeProfile();
+        // Session is valid — quietly refresh any data that may have changed.
+        await loadCategories();
+        if (selectedCategory) await loadEntries();
+      } catch {
+        // 401 is already handled by the axios response interceptor; other
+        // errors are swallowed — user can still retry manually via Refresh.
+      }
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCategory]);
 
   const loadJudgeProfile = async () => {
     try {
@@ -88,7 +110,25 @@ export function JudgeDashboard() {
       setScoringEntry(null);
       loadEntries();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to submit score');
+      // Surface the real cause so "idle → can't submit" is diagnosable.
+      let msg = 'Failed to submit score';
+      if (error?.response) {
+        const s = error.response.status;
+        const serverMsg = error.response.data?.error;
+        if (s === 401) {
+          msg = 'Your session has expired — you will be taken to the login screen.';
+        } else {
+          msg = `Submit failed (HTTP ${s})${serverMsg ? ': ' + serverMsg : ''}`;
+        }
+      } else if (error?.code === 'ECONNABORTED') {
+        msg = 'The server did not respond in time. Check your connection and try again.';
+      } else if (error?.message?.toLowerCase?.().includes('network')) {
+        msg = 'Network error — the backend may be unreachable. Try again shortly.';
+      } else if (error?.message) {
+        msg = `Submit failed — ${error.message}`;
+      }
+      console.error('Submit score error:', error);
+      alert(msg);
     }
   };
 
@@ -97,6 +137,18 @@ export function JudgeDashboard() {
     localStorage.removeItem('userId');
     localStorage.removeItem('role');
     navigate('/login');
+  };
+
+  const handleRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await loadJudgeProfile();
+      await loadCategories();
+      if (selectedCategory) await loadEntries();
+    } finally {
+      setTimeout(() => setRefreshing(false), 600);
+    }
   };
 
   const calculateStats = () => {
@@ -151,7 +203,19 @@ export function JudgeDashboard() {
             </div>
           )}
         </div>
-        <button onClick={handleLogout} className="logout-btn">Log Out</button>
+        <div className="judge-header-actions">
+          <button
+            type="button"
+            onClick={handleRefresh}
+            className={`header-refresh-btn judge-theme${refreshing ? ' spinning' : ''}`}
+            disabled={refreshing}
+            title="Refresh data"
+          >
+            <span className="header-refresh-icon" aria-hidden>↻</span>
+            <span>{refreshing ? 'Refreshing…' : 'Refresh'}</span>
+          </button>
+          <button onClick={handleLogout} className="logout-btn">Log Out</button>
+        </div>
       </header>
 
       <main className="judge-content">

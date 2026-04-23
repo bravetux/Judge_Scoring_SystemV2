@@ -12,6 +12,7 @@ const router = Router();
 router.post('/submit', authenticate, authorizeJudge, submitScore);
 router.get('/judge/categories', authenticate, authorizeJudge, getJudgeCategories);
 router.get('/judge/category/:categoryCode', authenticate, authorizeJudge, getEntriesForJudge);
-router.get('/category/:categoryCode', authenticate, authorizeAdmin, getScoresByCategory);
+// Admin + view both allowed; the controller enforces role check
+router.get('/category/:categoryCode', authenticate, getScoresByCategory);
 
 export default router;
