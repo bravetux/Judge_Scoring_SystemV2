@@ -1,0 +1,93 @@
+:root {
+  --paper: #efe7d3;
+  --paper-deep: #e4d9bf;
+  --paper-shadow: #d6cbae;
+  --paper-warm: #f5eedc;
+
+  --ink: #15110a;
+  --ink-soft: #3a342a;
+  --ink-ghost: #7d7466;
+  --ink-whisper: #b3a994;
+
+  --rule: rgba(21, 17, 10, 0.14);
+  --rule-strong: rgba(21, 17, 10, 0.32);
+
+  --vermilion: #b83f26;
+  --vermilion-dark: #8b2e18;
+  --vermilion-ink: #4a1508;
+  --brass: #a67c2f;
+  --brass-soft: #c7a45e;
+  --leaf: #48663a;
+  --amber: #b8842a;
+  --rust: #9a2a16;
+
+  --font-display: 'Fraunces', 'Didot', 'Georgia', serif;
+  --font-body: 'Instrument Sans', 'Helvetica Neue', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'IBM Plex Mono', 'Courier New', monospace;
+}
+
+html, body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-feature-settings: 'ss01', 'cv11';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-image:
+    radial-gradient(1px 1px at 20% 30%, rgba(21, 17, 10, 0.035) 40%, transparent 60%),
+    radial-gradient(1px 1px at 70% 80%, rgba(21, 17, 10, 0.03) 40%, transparent 60%),
+    radial-gradient(1px 1px at 45% 55%, rgba(21, 17, 10, 0.025) 40%, transparent 60%);
+  background-size: 180px 180px, 240px 240px, 320px 320px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.logout-btn {
+  appearance: none;
+  border: 1px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  padding: 10px 18px;
+  border-radius: 0;
+  cursor: pointer;
+  transition: background 0.25s ease, color 0.25s ease, letter-spacing 0.25s ease;
+  position: relative;
+}
+
+.logout-btn::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border: 1px solid transparent;
+  transition: border-color 0.25s ease;
+  pointer-events: none;
+}
+
+.logout-btn:hover {
+  background: var(--ink);
+  color: var(--paper);
+  letter-spacing: 0.28em;
+}
+
+.logout-btn:hover::before {
+  border-color: var(--paper);
+}
